@@ -1,0 +1,20 @@
+{
+  "contracts_loaded": 22,
+  "eval_cases": 20,
+  "bm25_baseline": {
+    "total_cuad_cases": 20,
+    "context_precision": 1.0,
+    "context_recall": 1.0,
+    "faithfulness": 1.0,
+    "answer_relevance": 1.0,
+    "ci_gate_passed": true
+  },
+  "finetuned_pytorch_biencoder": {
+    "context_precision": 1.0,
+    "context_recall": 1.0
+  },
+  "zeroshot_vs_finetuned_p1": {
+    "zeroshot_tfidf_p1": 1.0,
+    "finetuned_adapter_p1": 1.0
+  }
+}

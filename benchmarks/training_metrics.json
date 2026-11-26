@@ -1,0 +1,30 @@
+{
+  "base_encoder": "TfidfVectorizer (ngram 1-2, dim<=768)",
+  "adapter": "PyTorch MLP Bi-Encoder Adapter (128-d, InfoNCE)",
+  "contracts_indexed": 22,
+  "eval_queries": 20,
+  "zeroshot_precision_at_1": 1.0,
+  "finetuned_precision_at_1": 1.0,
+  "loss_history": [
+    {
+      "epoch": 1,
+      "loss": 2.9838
+    },
+    {
+      "epoch": 25,
+      "loss": 0.0004
+    },
+    {
+      "epoch": 50,
+      "loss": 0.0001
+    },
+    {
+      "epoch": 75,
+      "loss": 0.0001
+    },
+    {
+      "epoch": 100,
+      "loss": 0.0
+    }
+  ]
+}
