@@ -1,51 +1,58 @@
 {
-  "model": "PyTorch Residual MLP Adversarial Detector (256-d + CosineAnnealingLR)",
-  "total_samples": 468,
-  "clean_samples": 360,
-  "poisoned_samples": 108,
-  "test_accuracy": 0.9437,
-  "test_f1": 0.8667,
-  "test_roc_auc": 0.9041,
+  "model": "PyTorch Residual MLP Injection Detector (3000 TF-IDF + 8 Domain-Agnostic Features, CosineAnnealingLR)",
+  "datasets": [
+    "xTRam1/safe-guard-prompt-injection (official train/test)",
+    "deepset/prompt-injections (official train/test)",
+    "kiddothe2b/contract-nli disjoint clean clauses"
+  ],
+  "train_samples": 7762,
+  "val_samples": 1370,
+  "test_samples": 2296,
+  "test_accuracy": 0.9821,
+  "test_precision": 0.9869,
+  "test_recall": 0.9549,
+  "test_f1": 0.9707,
+  "test_roc_auc": 0.9924,
   "confusion_matrix": [
     [
-      54,
-      0
+      1577,
+      9
     ],
     [
-      4,
-      13
+      32,
+      678
     ]
   ],
   "loss_history": [
     {
       "epoch": 1,
-      "train_loss": 0.7135,
-      "val_acc": 0.8143
+      "train_loss": 0.1046,
+      "val_f1": 0.9665
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.0121,
+      "val_f1": 0.9739
     },
     {
       "epoch": 10,
-      "train_loss": 0.2445,
-      "val_acc": 0.9714
+      "train_loss": 0.0076,
+      "val_f1": 0.9607
+    },
+    {
+      "epoch": 15,
+      "train_loss": 0.0038,
+      "val_f1": 0.9677
     },
     {
       "epoch": 20,
-      "train_loss": 0.2073,
-      "val_acc": 0.9857
+      "train_loss": 0.0027,
+      "val_f1": 0.9689
     },
     {
-      "epoch": 30,
-      "train_loss": 0.1722,
-      "val_acc": 0.9857
-    },
-    {
-      "epoch": 40,
-      "train_loss": 0.1404,
-      "val_acc": 0.9857
-    },
-    {
-      "epoch": 50,
-      "train_loss": 0.1307,
-      "val_acc": 0.9857
+      "epoch": 25,
+      "train_loss": 0.002,
+      "val_f1": 0.9665
     }
   ]
 }

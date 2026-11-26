@@ -1,8 +1,9 @@
 import io
 import os
 import re
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 from pypdf import PdfReader
+from app.registry.doc_store import CanonicalDocRegistry, registry
 
 
 def chunk_text(text: str, chunk_words: int = 95, overlap: int = 15) -> List[str]:
@@ -24,7 +25,11 @@ def extract_numeric_invariants(text: str) -> List[str]:
     return re.findall(r"(?:\$?\d[\d,]*(?:\.\d+)?%?)", text)
 
 
-def parse_document_bytes(filename: str, raw_bytes: bytes) -> List[Dict[str, Any]]:
+def parse_document_bytes(
+    filename: str,
+    raw_bytes: bytes,
+    doc_registry: CanonicalDocRegistry = registry,
+) -> List[Dict[str, Any]]:
     ext = os.path.splitext(filename)[1].lower()
     pages_text = []
     if ext == ".pdf":
@@ -51,16 +56,19 @@ def parse_document_bytes(filename: str, raw_bytes: bytes) -> List[Dict[str, Any]
                 "page": page_num,
                 "content": seg,
                 "numeric_invariants": extract_numeric_invariants(seg),
+                "sha256": CanonicalDocRegistry.compute_sha256(seg),
             })
+    if chunks and doc_registry is not None:
+        doc_registry.upsert_chunks(chunks)
     return chunks
 
 
-def load_directory(docs_dir: str) -> List[Dict[str, Any]]:
+def load_directory(docs_dir: str, doc_registry: CanonicalDocRegistry = registry) -> List[Dict[str, Any]]:
     chunks = []
     if not os.path.exists(docs_dir):
         return chunks
     for fname in sorted(os.listdir(docs_dir)):
         if fname.lower().endswith((".pdf", ".md", ".txt")):
             with open(os.path.join(docs_dir, fname), "rb") as f:
-                chunks.extend(parse_document_bytes(fname, f.read()))
+                chunks.extend(parse_document_bytes(fname, f.read(), doc_registry=doc_registry))
     return chunks
