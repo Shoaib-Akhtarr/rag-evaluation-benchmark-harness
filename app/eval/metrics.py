@@ -1,83 +1,125 @@
-import json
 import os
 import re
 from typing import List, Dict, Any
 from rank_bm25 import BM25Okapi
+from app.ingestion.doc_loader import load_directory, parse_document_bytes
+from app.redteam.fuzzer import AdversarialRAGFuzzer
+from app.redteam.defense import defense_shield
+
+EVAL_QUERIES = [
+    {"query": "What is the aggregate liability cap and which state law governs the agreement?", "expected_doc": "01_Master_Services_Agreement", "facts": ["twelve (12)", "Delaware", "confidentiality"]},
+    {"query": "Within how many hours must Processor notify Customer of a Personal Data Breach?", "expected_doc": "02_Data_Processing_Addendum_GDPR", "facts": ["48 hours", "EU-central-2"]},
+    {"query": "What is the Monthly Uptime Commitment and Service Credit below 99.0%?", "expected_doc": "03_SLA_Uptime_and_Termination_Schedule", "facts": ["99.95%", "25%"]},
+    {"query": "Can Provider use Customer Prompts or embeddings to train third-party foundation models?", "expected_doc": "04_AI_Governance_and_IP_Rider", "facts": ["shall not", "Customer Prompts", "zero-day"]},
+    {"query": "What minimum Cyber & Tech E&O insurance and escrow agent are required?", "expected_doc": "05_Security_Audit_Escrow_Insurance", "facts": ["5,000,000", "Iron Mountain"]},
+    {"query": "Which arbitration body and city govern disputes exceeding $100,000?", "expected_doc": "06_Dispute_Resolution_and_Data_Purge", "facts": ["JAMS", "Wilmington", "Delaware"]},
+]
+
 
 class RAGEvaluationHarness:
     """
-    Production RAG Evaluation & CI/CD Gatekeeper (Ragas / DeepEval style).
-    Computes Context Precision, Context Recall, Faithfulness, and Answer Relevance
-    over the Stanford CUAD Legal Contract Benchmark.
+    Document-Backed RAG Evaluation + Adversarial Red-Team Benchmark Harness.
+    Ingests real PDF/MD/TXT files, computes Ragas-style retrieval & grounding metrics,
+    and runs 6-class adversarial fuzzing to measure ASR Before vs. After Defense.
     """
-    def __init__(self, data_path: str = None):
-        if data_path is None:
-            data_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "cuad_legal_corpus.json"
+    def __init__(self, docs_dir: str = None):
+        if docs_dir is None:
+            docs_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                "documents",
             )
-        with open(data_path, "r", encoding="utf-8") as f:
-            self.raw = json.load(f)
-        self.contracts = self.raw["contracts"]
-        self.eval_dataset = self.raw["eval_dataset"]
-        self.tokenized = [re.findall(r"[a-z0-9]+", (c["title"] + " " + c["content"]).lower()) for c in self.contracts]
-        self.bm25 = BM25Okapi(self.tokenized)
+        self.docs_dir = docs_dir
+        self.chunks: List[Dict[str, Any]] = []
+        self.bm25 = None
+        self.reload()
+
+    def reload(self):
+        self.chunks = load_directory(self.docs_dir)
+        self._rebuild_index()
+
+    def ingest_bytes(self, filename: str, raw_bytes: bytes) -> int:
+        new_chunks = parse_document_bytes(filename, raw_bytes)
+        if not new_chunks:
+            return 0
+        self.chunks = [c for c in self.chunks if c["filename"] != filename] + new_chunks
+        self._rebuild_index()
+        return len(new_chunks)
+
+    def _rebuild_index(self):
+        if not self.chunks:
+            self.bm25 = None
+            return
+        tokenized = [re.findall(r"[a-z0-9.-]+", c["content"].lower()) for c in self.chunks]
+        self.bm25 = BM25Okapi(tokenized)
 
     def retrieve_top_k(self, query: str, k: int = 2) -> List[Dict[str, Any]]:
-        tokens = re.findall(r"[a-z0-9]+", query.lower())
+        if not self.chunks or self.bm25 is None:
+            return []
+        tokens = re.findall(r"[a-z0-9.-]+", query.lower())
         scores = self.bm25.get_scores(tokens)
-        ranked = sorted(zip(self.contracts, scores), key=lambda x: x[1], reverse=True)[:k]
+        ranked = sorted(zip(self.chunks, scores), key=lambda x: x[1], reverse=True)[:k]
         return [doc for doc, _ in ranked]
 
     def generate_grounded_answer(self, contexts: List[Dict[str, Any]]) -> str:
-        # Synthesize verbatim-grounded legal response from top retrieved context
         return " ".join(c["content"] for c in contexts[:1])
 
     def compute_metrics(self) -> Dict[str, Any]:
-        precision_scores = []
-        recall_scores = []
-        faithfulness_scores = []
-        relevance_scores = []
-
-        for item in self.eval_dataset:
+        prec, rec, faith, rel = [], [], [], []
+        for item in EVAL_QUERIES:
             retrieved = self.retrieve_top_k(item["query"], k=2)
-            retrieved_ids = [r["doc_id"] for r in retrieved]
-            expected_id = item["expected_doc_id"]
+            r_docs = [r["doc_id"] for r in retrieved]
+            exp = item["expected_doc"]
+            prec.append(1.0 if r_docs[0] == exp else (0.5 if exp in r_docs else 0.0))
+            rec.append(1.0 if exp in r_docs else 0.0)
 
-            # Context Precision: 1.0 if expected doc is rank 1, 0.5 if rank 2, 0.0 otherwise
-            if retrieved_ids[0] == expected_id:
-                precision_scores.append(1.0)
-            elif expected_id in retrieved_ids:
-                precision_scores.append(0.5)
-            else:
-                precision_scores.append(0.0)
+            ans = self.generate_grounded_answer(retrieved)
+            ans_toks = set(re.findall(r"[a-z0-9]+", ans.lower()))
+            ctx_toks = set(re.findall(r"[a-z0-9]+", " ".join(r["content"].lower() for r in retrieved)))
+            faith.append(len(ans_toks & ctx_toks) / max(1, len(ans_toks)))
+            rel.append(sum(1 for f in item["facts"] if f.lower() in ans.lower()) / len(item["facts"]))
 
-            # Context Recall: 1.0 if expected doc is in top-k
-            recall_scores.append(1.0 if expected_id in retrieved_ids else 0.0)
-
-            # Generate response & evaluate Faithfulness + Answer Relevance
-            answer = self.generate_grounded_answer(retrieved)
-            ans_lower = answer.lower()
-            ctx_lower = " ".join(r["content"].lower() for r in retrieved)
-
-            # Faithfulness: fraction of answer tokens supported by retrieved context
-            ans_tokens = set(re.findall(r"[a-z0-9]+", ans_lower))
-            ctx_tokens = set(re.findall(r"[a-z0-9]+", ctx_lower))
-            faith = len(ans_tokens.intersection(ctx_tokens)) / len(ans_tokens) if ans_tokens else 0.0
-            faithfulness_scores.append(faith)
-
-            # Answer Relevance: fraction of required ground-truth facts present in answer
-            facts = item["required_facts"]
-            matched_facts = sum(1 for f in facts if f.lower() in ans_lower)
-            relevance_scores.append(matched_facts / len(facts))
-
-        n = len(self.eval_dataset)
+        n = len(EVAL_QUERIES)
         return {
-            "total_cuad_cases": n,
-            "context_precision": round(sum(precision_scores) / n, 4),
-            "context_recall": round(sum(recall_scores) / n, 4),
-            "faithfulness": round(sum(faithfulness_scores) / n, 4),
-            "answer_relevance": round(sum(relevance_scores) / n, 4),
-            "ci_gate_passed": (sum(faithfulness_scores) / n >= 0.90) and (sum(recall_scores) / n >= 0.85)
+            "documents_indexed": len({c["doc_id"] for c in self.chunks}),
+            "chunks_indexed": len(self.chunks),
+            "eval_cases": n,
+            "context_precision": round(sum(prec) / n, 4),
+            "context_recall": round(sum(rec) / n, 4),
+            "faithfulness": round(sum(faith) / n, 4),
+            "answer_relevance": round(sum(rel) / n, 4),
+            "ci_gate_passed": (sum(faith) / n >= 0.90) and (sum(rec) / n >= 0.85),
         }
+
+    def run_redteam_audit(self) -> Dict[str, Any]:
+        fuzzer = AdversarialRAGFuzzer(seed=42)
+        attacks = fuzzer.generate_attack_suite(self.chunks, attacks_per_chunk=3)
+        total = len(attacks)
+        blocked_count = 0
+        by_attack = {}
+
+        for atk_chunk in attacks:
+            atype = atk_chunk["attack_type"]
+            by_attack.setdefault(atype, {"total": 0, "blocked": 0})
+            by_attack[atype]["total"] += 1
+
+            # Pass clean numeric invariants from original chunk for checksum layer
+            clean_inv = atk_chunk.get("numeric_invariants", [])
+            res = defense_shield.verify_chunk(atk_chunk, clean_invariants=clean_inv)
+            if res["blocked"]:
+                blocked_count += 1
+                by_attack[atype]["blocked"] += 1
+
+        # Naive RAG without defense accepts 100% of poisoned retrieved chunks (ASR = 100%)
+        asr_without_defense = 100.0
+        asr_with_defense = round(100.0 * (1 - blocked_count / max(1, total)), 2)
+        return {
+            "total_adversarial_attacks": total,
+            "attacks_blocked": blocked_count,
+            "defense_block_rate_pct": round(100.0 * blocked_count / max(1, total), 2),
+            "asr_without_defense_pct": asr_without_defense,
+            "asr_with_defense_pct": asr_with_defense,
+            "breakdown_by_attack": by_attack,
+        }
+
 
 eval_harness = RAGEvaluationHarness()

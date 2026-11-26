@@ -1,20 +1,50 @@
 {
-  "contracts_loaded": 22,
-  "eval_cases": 20,
-  "bm25_baseline": {
-    "total_cuad_cases": 20,
+  "clean_rag_ci_gate": {
+    "documents_indexed": 6,
+    "chunks_indexed": 8,
+    "eval_cases": 6,
     "context_precision": 1.0,
     "context_recall": 1.0,
     "faithfulness": 1.0,
     "answer_relevance": 1.0,
     "ci_gate_passed": true
   },
-  "finetuned_pytorch_biencoder": {
-    "context_precision": 1.0,
-    "context_recall": 1.0
+  "pytorch_redteam_detector": {
+    "test_accuracy": 0.9437,
+    "test_f1": 0.8667,
+    "test_roc_auc": 0.9041
   },
-  "zeroshot_vs_finetuned_p1": {
-    "zeroshot_tfidf_p1": 1.0,
-    "finetuned_adapter_p1": 1.0
+  "redteam_asr_before_vs_after": {
+    "total_adversarial_attacks": 24,
+    "attacks_blocked": 23,
+    "defense_block_rate_pct": 95.83,
+    "asr_without_defense_pct": 100.0,
+    "asr_with_defense_pct": 4.17,
+    "breakdown_by_attack": {
+      "CITATION_SPOOFING": {
+        "total": 4,
+        "blocked": 4
+      },
+      "INDIRECT_PROMPT_INJECTION": {
+        "total": 4,
+        "blocked": 4
+      },
+      "OBLIGATION_INVERSION": {
+        "total": 5,
+        "blocked": 4
+      },
+      "ENTITY_SWAP": {
+        "total": 3,
+        "blocked": 3
+      },
+      "NUMERIC_DRIFT": {
+        "total": 4,
+        "blocked": 4
+      },
+      "STALE_DATE_SPOOF": {
+        "total": 4,
+        "blocked": 4
+      }
+    }
   }
 }

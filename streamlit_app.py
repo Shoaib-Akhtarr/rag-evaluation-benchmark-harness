@@ -5,44 +5,60 @@ import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.eval.metrics import eval_harness
+from app.eval.metrics import eval_harness, EVAL_QUERIES
+from app.redteam.fuzzer import AdversarialRAGFuzzer, ATTACK_CLASSES
+from app.redteam.defense import defense_shield
 
-st.set_page_config(page_title="RAG Evaluation & CI Gatekeeper", page_icon="⚖️", layout="wide")
-st.title("⚖️ RAG Evaluation & CI/CD Gatekeeper (Stanford CUAD)")
-st.caption("Context Precision · Context Recall · Faithfulness · Answer Relevance")
+st.set_page_config(page_title="Adversarial RAG Red-Team & Defense", page_icon="🛡️", layout="wide")
+st.title("🛡️ Adversarial RAG Red-Team & Citation-Spoofing Defense")
+st.caption("Real PDF/MD/TXT Ingestion · 6-Class Mutation Fuzzer · PyTorch Residual MLP + Numeric Checksum Shield")
 
 with st.sidebar:
-    st.header("CUAD Legal Corpus")
-    st.metric("Legal Contracts Loaded", len(eval_harness.contracts))
-    st.metric("Evaluation Cases", len(eval_harness.eval_dataset))
+    st.header("Ingest Real Documents")
+    uploaded = st.file_uploader("Upload PDF, Markdown, or TXT", type=["pdf", "md", "txt"], accept_multiple_files=True)
+    if uploaded:
+        for uf in uploaded:
+            added = eval_harness.ingest_bytes(uf.name, uf.read())
+            st.success(f"Indexed `{uf.name}` ({added} chunks)")
+    st.metric("Documents Indexed", len({c["doc_id"] for c in eval_harness.chunks}))
+    st.metric("Page Chunks", len(eval_harness.chunks))
 
-st.subheader("1. Automated CI/CD Quality Gate")
-if st.button("Run Full CUAD Evaluation Gate", type="primary"):
-    metrics = eval_harness.compute_metrics()
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Context Precision", f"{metrics['context_precision']:.2%}")
-    c2.metric("Context Recall", f"{metrics['context_recall']:.2%}")
-    c3.metric("Faithfulness", f"{metrics['faithfulness']:.2%}")
-    c4.metric("Answer Relevance", f"{metrics['answer_relevance']:.2%}")
+tab1, tab2 = st.tabs(["1. Red-Team ASR Audit", "2. Live Attack Simulator"])
 
-    if metrics["ci_gate_passed"]:
-        st.success("CI GATE PASSED — Faithfulness >= 90% and Context Recall >= 85%")
-    else:
-        st.error("CI GATE FAILED — Deployment Blocked")
+with tab1:
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("Run Red-Team Security Audit", type="primary"):
+            rt = eval_harness.run_redteam_audit()
+            m1, m2, m3 = st.columns(3)
+            m1.metric("ASR Without Defense", f"{rt['asr_without_defense_pct']}%")
+            m2.metric("ASR With Defense", f"{rt['asr_with_defense_pct']}%")
+            m3.metric("Defense Block Rate", f"{rt['defense_block_rate_pct']}%")
+            st.dataframe(pd.DataFrame(rt["breakdown_by_attack"]).T, use_container_width=True)
+    with col_b:
+        if st.button("Run Clean Retrieval CI Gate"):
+            m = eval_harness.compute_metrics()
+            st.metric("Context Precision", f"{m['context_precision']:.2%}")
+            st.metric("Context Recall", f"{m['context_recall']:.2%}")
+            st.metric("Faithfulness", f"{m['faithfulness']:.2%}")
+            st.success("CI GATE PASSED") if m["ci_gate_passed"] else st.error("CI GATE FAILED")
 
-st.divider()
-st.subheader("2. Interactive Legal Clause Retrieval")
-presets = [e["query"] for e in eval_harness.eval_dataset]
-chosen = st.selectbox("Sample CUAD Legal Query:", presets)
-query = st.text_input("Query legal clauses:", value=chosen)
-top_k = st.slider("Top-K Clauses:", 1, 5, 2)
-
-if st.button("Retrieve & Ground Legal Answer"):
-    docs = eval_harness.retrieve_top_k(query, k=top_k)
-    answer = eval_harness.generate_grounded_answer(docs)
-    st.subheader("Verbatim-Grounded Answer")
-    st.info(answer)
-    st.subheader("Retrieved Clauses")
-    for d in docs:
-        with st.expander(f"[{d['doc_id']}] {d['title']} ({d['clause_category']})"):
-            st.write(d["content"])
+with tab2:
+    atk_choice = st.selectbox("Select Attack Class to Inject:", ATTACK_CLASSES)
+    if eval_harness.chunks:
+        chunk_idx = st.slider("Target PDF Chunk Index:", 0, len(eval_harness.chunks) - 1, 0)
+        if st.button("Mutate Chunk & Test Defense"):
+            orig = eval_harness.chunks[chunk_idx]
+            mut = AdversarialRAGFuzzer(seed=42).mutate_chunk(orig, atk_choice)
+            verdict = defense_shield.verify_chunk(mut, clean_invariants=orig["numeric_invariants"])
+            c1, c2 = st.columns(2)
+            with c1:
+                st.subheader("Clean PDF Chunk")
+                st.info(orig["content"])
+            with c2:
+                st.subheader(f"Poisoned Chunk ({atk_choice})")
+                st.warning(mut["content"])
+            if verdict["blocked"]:
+                st.success(f"BLOCKED by Defense Shield — {', '.join(verdict['reasons'])}")
+            else:
+                st.error("BYPASSED Defense Shield")

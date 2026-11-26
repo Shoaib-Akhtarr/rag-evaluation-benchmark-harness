@@ -1,0 +1,51 @@
+{
+  "model": "PyTorch Residual MLP Adversarial Detector (256-d + CosineAnnealingLR)",
+  "total_samples": 468,
+  "clean_samples": 360,
+  "poisoned_samples": 108,
+  "test_accuracy": 0.9437,
+  "test_f1": 0.8667,
+  "test_roc_auc": 0.9041,
+  "confusion_matrix": [
+    [
+      54,
+      0
+    ],
+    [
+      4,
+      13
+    ]
+  ],
+  "loss_history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.7135,
+      "val_acc": 0.8143
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.2445,
+      "val_acc": 0.9714
+    },
+    {
+      "epoch": 20,
+      "train_loss": 0.2073,
+      "val_acc": 0.9857
+    },
+    {
+      "epoch": 30,
+      "train_loss": 0.1722,
+      "val_acc": 0.9857
+    },
+    {
+      "epoch": 40,
+      "train_loss": 0.1404,
+      "val_acc": 0.9857
+    },
+    {
+      "epoch": 50,
+      "train_loss": 0.1307,
+      "val_acc": 0.9857
+    }
+  ]
+}

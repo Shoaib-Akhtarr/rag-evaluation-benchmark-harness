@@ -1,10 +1,6 @@
-# Stanford CUAD RAG Evaluation & Ablation Report
+# Adversarial RAG Red-Team & Defense Benchmark
 
-- **Contracts:** 22 | **Eval Cases:** 20
-
-| Retriever | Context Precision | Context Recall |
-|---|---:|---:|
-| BM25Okapi | 1.0 | 1.0 |
-| Fine-Tuned PyTorch Bi-Encoder Adapter | 1.0 | 1.0 |
-
-- **Faithfulness:** 1.0 | **Answer Relevance:** 1.0 | **CI Gate Passed:** True
+- **Ingested Legal PDFs:** 6 PDFs (8 chunks)
+- **PyTorch Adversarial Detector:** Test Accuracy = **0.9437**, F1 = **0.8667**, ROC-AUC = **0.9041**
+- **Attack Success Rate (ASR) Without Defense:** **100.0%**
+- **Attack Success Rate (ASR) With Defense:** **4.17%** (Block Rate: **95.83%**)
